@@ -25,18 +25,18 @@ This repository builds multi-architecture FrankenPHP base images using GitHub Ac
 
 ## Image Tags
 
-Images are tagged with the following format:
+Images are hosted on GitHub Container Registry and tagged with the following format:
 ```
-<repository>:php<version>-<debian>-<arch>
+ghcr.io/notglossy/frankenpress-src:php<version>-<debian>-<arch>
 ```
 
 Examples:
-- `php8.4-trixie-amd64`
-- `php8.3-bookworm-arm64`
-- `php8.2-trixie-armv7`
+- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64`
+- `ghcr.io/notglossy/frankenpress-src:php8.3-bookworm-arm64`
+- `ghcr.io/notglossy/frankenpress-src:php8.2-trixie-armv7`
 
 Each image is also tagged with the git commit SHA for precise versioning:
-- `php8.4-trixie-amd64-<git-sha>`
+- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64-<git-sha>`
 
 ## Features
 
@@ -66,6 +66,14 @@ docker build \
   --build-arg DEBIAN_VERSION=trixie \
   --platform linux/amd64 \
   -t frankenpress-base:local .
+```
+
+## Pulling Images
+
+Images are publicly available from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64
 ```
 
 ## Usage in FrankenPress

@@ -160,7 +160,7 @@ jobs:
       - name: Build and push Docker image
         # On PRs, only build the test image; on main, build all
         if: github.event_name != 'pull_request' || matrix.is_test_build == true
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -172,6 +172,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Add provenance attestations for supply chain security
+          provenance: true
+          sbom: true
 
   create-manifests:
     needs: build

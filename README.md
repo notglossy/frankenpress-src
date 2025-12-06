@@ -71,6 +71,7 @@ Each architecture-specific image is also tagged with the git commit SHA:
 - Includes Vulcain and Brotli compression support
 - File watcher library (libwatcher-c) for development
 - Includes `install-php-extensions` helper for easy PHP extension installation
+- **Supply chain security**: All images include SLSA provenance attestations and SBOMs
 
 ## Build Process
 
@@ -110,6 +111,29 @@ Or pull a specific architecture:
 ```bash
 docker pull ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64
 ```
+
+## Supply Chain Security
+
+All images include cryptographically signed attestations for supply chain verification.
+
+### Verifying Attestations
+
+Verify the provenance (build origin) of an image:
+```bash
+docker buildx imagetools inspect ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64 --format "{{ json .Provenance }}"
+```
+
+View the Software Bill of Materials (SBOM):
+```bash
+docker buildx imagetools inspect ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64 --format "{{ json .SBOM }}"
+```
+
+### What's Included
+
+- **SLSA Provenance**: Verifiable record of how the image was built (GitHub Actions workflow, commit SHA, build parameters)
+- **SBOM**: Complete list of software packages and dependencies in the image
+
+These attestations are automatically generated during the build process and signed by GitHub's OIDC identity provider.
 
 ## Usage in FrankenPress
 

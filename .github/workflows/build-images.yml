@@ -138,7 +138,42 @@ jobs:
       packages: write
     strategy:
       matrix:
-        php_version: ["8.5", "8.4", "8.3", "8.2"]
+        include:
+          # Multi-arch manifests by PHP version only (all architectures)
+          - php_version: "8.5"
+            manifest_type: php-only
+          - php_version: "8.4"
+            manifest_type: php-only
+          - php_version: "8.3"
+            manifest_type: php-only
+          - php_version: "8.2"
+            manifest_type: php-only
+
+          # Multi-arch manifests by PHP version + Debian version
+          - php_version: "8.5"
+            debian_version: trixie
+            manifest_type: php-debian
+          - php_version: "8.4"
+            debian_version: trixie
+            manifest_type: php-debian
+          - php_version: "8.3"
+            debian_version: trixie
+            manifest_type: php-debian
+          - php_version: "8.2"
+            debian_version: trixie
+            manifest_type: php-debian
+          - php_version: "8.5"
+            debian_version: bookworm
+            manifest_type: php-debian
+          - php_version: "8.4"
+            debian_version: bookworm
+            manifest_type: php-debian
+          - php_version: "8.3"
+            debian_version: bookworm
+            manifest_type: php-debian
+          - php_version: "8.2"
+            debian_version: bookworm
+            manifest_type: php-debian
 
     steps:
       - name: Set up Docker Buildx
@@ -151,9 +186,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create multi-arch manifest for PHP ${{ matrix.php_version }}
+      - name: Create multi-arch manifest for PHP ${{ matrix.php_version }} (all architectures)
+        if: matrix.manifest_type == 'php-only'
         run: |
           docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }} \
             ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-arm64 \
             ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-amd64 \
             ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-armv7
+
+      - name: Create multi-arch manifest for PHP ${{ matrix.php_version }}-${{ matrix.debian_version }}
+        if: matrix.manifest_type == 'php-debian'
+        run: |
+          if [ "${{ matrix.debian_version }}" = "trixie" ]; then
+            docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-${{ matrix.debian_version }} \
+              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-arm64 \
+              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-amd64
+          else
+            docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-${{ matrix.debian_version }} \
+              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-armv7
+          fi

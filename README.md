@@ -29,19 +29,24 @@ Images are hosted on GitHub Container Registry with both multi-architecture mani
 
 ### Multi-Architecture Manifests (Recommended)
 
-Use these tags to automatically pull the correct architecture for your platform:
+**By PHP version only** (includes all available architectures):
 ```
 ghcr.io/notglossy/frankenpress-src:php<version>
 ```
 
-Each manifest includes:
-- Trixie: ARM64 + AMD64
-- Bookworm: ARMv7
+Examples:
+- `ghcr.io/notglossy/frankenpress-src:php8.4` - ARM64 (Trixie) + AMD64 (Trixie) + ARMv7 (Bookworm)
+- `ghcr.io/notglossy/frankenpress-src:php8.3` - ARM64 (Trixie) + AMD64 (Trixie) + ARMv7 (Bookworm)
+
+**By PHP version + Debian version** (multi-arch for that distro):
+```
+ghcr.io/notglossy/frankenpress-src:php<version>-<debian>
+```
 
 Examples:
-- `ghcr.io/notglossy/frankenpress-src:php8.4` (auto-selects architecture)
-- `ghcr.io/notglossy/frankenpress-src:php8.3` (auto-selects architecture)
-- `ghcr.io/notglossy/frankenpress-src:php8.2` (auto-selects architecture)
+- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie` - ARM64 + AMD64
+- `ghcr.io/notglossy/frankenpress-src:php8.4-bookworm` - ARMv7 only
+- `ghcr.io/notglossy/frankenpress-src:php8.3-trixie` - ARM64 + AMD64
 
 ### Architecture-Specific Tags
 

@@ -25,17 +25,37 @@ This repository builds multi-architecture FrankenPHP base images using GitHub Ac
 
 ## Image Tags
 
-Images are hosted on GitHub Container Registry and tagged with the following format:
+Images are hosted on GitHub Container Registry with both multi-architecture manifests and architecture-specific tags.
+
+### Multi-Architecture Manifests (Recommended)
+
+Use these tags to automatically pull the correct architecture for your platform:
+```
+ghcr.io/notglossy/frankenpress-src:php<version>
+```
+
+Each manifest includes:
+- Trixie: ARM64 + AMD64
+- Bookworm: ARMv7
+
+Examples:
+- `ghcr.io/notglossy/frankenpress-src:php8.4` (auto-selects architecture)
+- `ghcr.io/notglossy/frankenpress-src:php8.3` (auto-selects architecture)
+- `ghcr.io/notglossy/frankenpress-src:php8.2` (auto-selects architecture)
+
+### Architecture-Specific Tags
+
+For targeting specific Debian versions and architectures:
 ```
 ghcr.io/notglossy/frankenpress-src:php<version>-<debian>-<arch>
 ```
 
 Examples:
 - `ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64`
-- `ghcr.io/notglossy/frankenpress-src:php8.3-bookworm-arm64`
-- `ghcr.io/notglossy/frankenpress-src:php8.2-trixie-armv7`
+- `ghcr.io/notglossy/frankenpress-src:php8.3-bookworm-armv7`
+- `ghcr.io/notglossy/frankenpress-src:php8.2-trixie-arm64`
 
-Each image is also tagged with the git commit SHA for precise versioning:
+Each architecture-specific image is also tagged with the git commit SHA:
 - `ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64-<git-sha>`
 
 ## Features
@@ -70,8 +90,14 @@ docker build \
 
 ## Pulling Images
 
-Images are publicly available from GitHub Container Registry:
+Images are publicly available from GitHub Container Registry.
 
+Pull a multi-architecture image (recommended):
+```bash
+docker pull ghcr.io/notglossy/frankenpress-src:php8.4
+```
+
+Or pull a specific architecture:
 ```bash
 docker pull ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64
 ```

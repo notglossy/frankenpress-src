@@ -71,10 +71,14 @@ Each architecture-specific image is also tagged with the git commit SHA:
 
 Images are automatically built using GitHub Actions on:
 - Pushes to the `main` branch
-- Pull requests (build only, no push)
+- Pull requests (build only, no push - single test image)
 - Manual workflow dispatch
 
-The build process uses Docker Buildx with QEMU for cross-platform compilation, enabling ARM builds on x86 runners.
+The build process uses native architecture runners for optimal performance:
+- AMD64 images: Built on `ubuntu-latest` (x86_64) runners
+- ARM64/ARMv7 images: Built on `ubuntu-24.04-arm` (native ARM) runners
+
+This eliminates the need for QEMU emulation and significantly speeds up ARM builds.
 
 ## Local Building
 

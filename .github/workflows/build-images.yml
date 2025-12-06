@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -21,65 +21,80 @@ jobs:
             php_version: "8.5"
             platform: linux/arm64
             tags_suffix: php8.5-trixie-arm64
+            runner: ubuntu-24.04-arm
           - debian_version: trixie
             php_version: "8.4"
             platform: linux/arm64
             tags_suffix: php8.4-trixie-arm64
+            runner: ubuntu-24.04-arm
           - debian_version: trixie
             php_version: "8.3"
             platform: linux/arm64
             tags_suffix: php8.3-trixie-arm64
+            runner: ubuntu-24.04-arm
           - debian_version: trixie
             php_version: "8.2"
             platform: linux/arm64
             tags_suffix: php8.2-trixie-arm64
+            runner: ubuntu-24.04-arm
 
           # Debian Trixie AMD64
           - debian_version: trixie
             php_version: "8.5"
             platform: linux/amd64
             tags_suffix: php8.5-trixie-amd64
+            runner: ubuntu-latest
           - debian_version: trixie
             php_version: "8.4"
             platform: linux/amd64
             tags_suffix: php8.4-trixie-amd64
+            runner: ubuntu-latest
             is_test_build: true  # Mark this as the test build for PRs
           - debian_version: trixie
             php_version: "8.3"
             platform: linux/amd64
             tags_suffix: php8.3-trixie-amd64
+            runner: ubuntu-latest
           - debian_version: trixie
             php_version: "8.2"
             platform: linux/amd64
             tags_suffix: php8.2-trixie-amd64
+            runner: ubuntu-latest
 
           # Debian Bookworm ARM v7
           - debian_version: bookworm
             php_version: "8.5"
             platform: linux/arm/v7
             tags_suffix: php8.5-bookworm-armv7
+            runner: ubuntu-24.04-arm
           - debian_version: bookworm
             php_version: "8.4"
             platform: linux/arm/v7
             tags_suffix: php8.4-bookworm-armv7
+            runner: ubuntu-24.04-arm
           - debian_version: bookworm
             php_version: "8.3"
             platform: linux/arm/v7
             tags_suffix: php8.3-bookworm-armv7
+            runner: ubuntu-24.04-arm
           - debian_version: bookworm
             php_version: "8.2"
             platform: linux/arm/v7
             tags_suffix: php8.2-bookworm-armv7
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'

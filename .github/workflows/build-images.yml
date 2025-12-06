@@ -61,6 +61,50 @@ jobs:
             tags_suffix: php8.2-trixie-amd64
             runner: ubuntu-latest
 
+          # Debian Bookworm ARM64
+          - debian_version: bookworm
+            php_version: "8.5"
+            platform: linux/arm64
+            tags_suffix: php8.5-bookworm-arm64
+            runner: ubuntu-24.04-arm
+          - debian_version: bookworm
+            php_version: "8.4"
+            platform: linux/arm64
+            tags_suffix: php8.4-bookworm-arm64
+            runner: ubuntu-24.04-arm
+          - debian_version: bookworm
+            php_version: "8.3"
+            platform: linux/arm64
+            tags_suffix: php8.3-bookworm-arm64
+            runner: ubuntu-24.04-arm
+          - debian_version: bookworm
+            php_version: "8.2"
+            platform: linux/arm64
+            tags_suffix: php8.2-bookworm-arm64
+            runner: ubuntu-24.04-arm
+
+          # Debian Bookworm AMD64
+          - debian_version: bookworm
+            php_version: "8.5"
+            platform: linux/amd64
+            tags_suffix: php8.5-bookworm-amd64
+            runner: ubuntu-latest
+          - debian_version: bookworm
+            php_version: "8.4"
+            platform: linux/amd64
+            tags_suffix: php8.4-bookworm-amd64
+            runner: ubuntu-latest
+          - debian_version: bookworm
+            php_version: "8.3"
+            platform: linux/amd64
+            tags_suffix: php8.3-bookworm-amd64
+            runner: ubuntu-latest
+          - debian_version: bookworm
+            php_version: "8.2"
+            platform: linux/amd64
+            tags_suffix: php8.2-bookworm-amd64
+            runner: ubuntu-latest
+
           # Debian Bookworm ARM v7
           - debian_version: bookworm
             php_version: "8.5"
@@ -192,6 +236,8 @@ jobs:
           docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }} \
             ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-arm64 \
             ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-amd64 \
+            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-arm64 \
+            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-amd64 \
             ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-armv7
 
       - name: Create multi-arch manifest for PHP ${{ matrix.php_version }}-${{ matrix.debian_version }}
@@ -203,5 +249,7 @@ jobs:
               ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-amd64
           else
             docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-${{ matrix.debian_version }} \
+              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-arm64 \
+              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-amd64 \
               ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-armv7
           fi

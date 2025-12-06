@@ -35,8 +35,8 @@ ghcr.io/notglossy/frankenpress-src:php<version>
 ```
 
 Examples:
-- `ghcr.io/notglossy/frankenpress-src:php8.4` - ARM64 (Trixie) + AMD64 (Trixie) + ARMv7 (Bookworm)
-- `ghcr.io/notglossy/frankenpress-src:php8.3` - ARM64 (Trixie) + AMD64 (Trixie) + ARMv7 (Bookworm)
+- `ghcr.io/notglossy/frankenpress-src:php8.4` - All architectures across both distros
+- `ghcr.io/notglossy/frankenpress-src:php8.3` - All architectures across both distros
 
 **By PHP version + Debian version** (multi-arch for that distro):
 ```
@@ -44,9 +44,9 @@ ghcr.io/notglossy/frankenpress-src:php<version>-<debian>
 ```
 
 Examples:
-- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie` - ARM64 + AMD64
-- `ghcr.io/notglossy/frankenpress-src:php8.4-bookworm` - ARMv7 only
-- `ghcr.io/notglossy/frankenpress-src:php8.3-trixie` - ARM64 + AMD64
+- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie` - ARM64 + AMD64 on Trixie
+- `ghcr.io/notglossy/frankenpress-src:php8.4-bookworm` - ARM64 + AMD64 + ARMv7 on Bookworm
+- `ghcr.io/notglossy/frankenpress-src:php8.3-trixie` - ARM64 + AMD64 on Trixie
 
 ### Architecture-Specific Tags
 

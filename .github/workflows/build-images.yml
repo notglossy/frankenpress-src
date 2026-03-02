@@ -1,6 +1,8 @@
 name: Build Docker Images
 
 on:
+  schedule:
+    - cron: '0 2 * * 6'
   push:
     branches:
       - main
@@ -170,8 +172,6 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           # Add provenance attestations for supply chain security
           provenance: true
           sbom: true

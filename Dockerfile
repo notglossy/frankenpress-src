@@ -33,7 +33,7 @@ RUN git clone https://github.com/php/frankenphp.git \
 
 WORKDIR /watcher
 
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wno-error=use-after-free" \
 	&& cmake --build build \
 	&& cmake --install build \
 	&& cp /watcher/build/libwatcher-c.so /usr/local/lib/libwatcher-c.so \

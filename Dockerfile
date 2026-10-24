@@ -157,12 +157,14 @@ RUN go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest \
 COPY --from=runtime-base /var/lib/dpkg/status.d /usr/local/share/frankenpress/base-status.d
 COPY fp-collect-runtime /usr/local/bin/fp-collect-runtime
 
-# Directories and default config shared by both targets.
+# Directories and default config shared by both targets. /skel is root-owned
+# (config, webroot); /skel-state holds the only paths the server writes to.
+# /etc/frankenphp/Caddyfile is a symlink, so overriding either path works.
 RUN set -eux; \
-	mkdir -p /skel/app/public /skel/config/caddy /skel/data/caddy /skel/etc/caddy /skel/etc/frankenphp; \
+	mkdir -p /skel/app/public /skel/etc/caddy /skel/etc/frankenphp /skel-state/config/caddy /skel-state/data/caddy; \
 	echo '<?php phpinfo();' > /skel/app/public/index.php; \
-	cp /src/frankenphp/caddy/frankenphp/Caddyfile /skel/etc/frankenphp/Caddyfile; \
-	cp /src/frankenphp/caddy/frankenphp/Caddyfile /skel/etc/caddy/Caddyfile
+	cp /src/frankenphp/caddy/frankenphp/Caddyfile /skel/etc/caddy/Caddyfile; \
+	ln -s ../caddy/Caddyfile /skel/etc/frankenphp/Caddyfile
 
 # -----------------------------------------------------------------------------
 # Collect the runtime filesystem
@@ -189,7 +191,7 @@ COPY --from=pie /pie /usr/local/bin/pie
 # Tell fp-collect-runtime what the runtime image already contains.
 COPY --from=collect /rootfs/var/lib/dpkg/status.d/ /usr/local/share/frankenpress/base-status.d/
 COPY --from=collect /runtime-usr-local.sha256 /usr/local/share/frankenpress/
-RUN cp -a /skel/. / && rm -rf /skel /src
+RUN cp -a /skel/. /skel-state/. / && rm -rf /skel /skel-state /src
 WORKDIR /app
 ENV XDG_CONFIG_HOME=/config \
 	XDG_DATA_HOME=/data
@@ -201,7 +203,8 @@ CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--adapter", 
 FROM runtime-base AS runtime
 
 COPY --from=collect /rootfs/ /
-COPY --from=collect --chown=65532:65532 /skel/ /
+COPY --from=collect /skel/ /
+COPY --from=collect --chown=65532:65532 /skel-state/ /
 
 ENV PHP_INI_DIR=/usr/local/etc/php \
 	XDG_CONFIG_HOME=/config \

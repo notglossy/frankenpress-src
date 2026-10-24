@@ -7,6 +7,8 @@
 # - Copies /usr/local, minus build-only files (headers, phpize, php-config, PIE).
 # - Resolves every shared library the ELF files need (ldd), maps each one to the
 #   Debian package that owns it and copies that package's files.
+# - Follows each copied package's Depends, so data and config packages
+#   (e.g. imagemagick-7-common's policy.xml) come along too.
 # - Extra packages (e.g. ghostscript) are copied whole, and their libraries
 #   resolved the same way.
 # - Writes a dpkg status.d entry for every copied package so scanners and SBOM
@@ -91,7 +93,50 @@ while read -r lib; do
 	fi
 done < <(ldd "${elfs[@]}" 2>/dev/null | awk '/=> \//{print $3}' | sort -u)
 
-# 4. Copy each package that the base image doesn't already have.
+# 4. Add the installed packages these depend on. For alternatives
+#    (a | b) the first installed one wins; virtual packages resolve through the
+#    real package that provides them. Pre-Depends and the tools maintainer
+#    scripts call are install-time only; a runtime with no package manager
+#    doesn't need them.
+install_time=" dpkg debconf ucf install-info "
+installed() { [ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null)" = installed ]; }
+
+provider() {
+	local alt name
+	for alt in "$@"; do
+		name=${alt%%:*}
+		if installed "$name"; then
+			echo "$name"
+			return 0
+		fi
+		name=$(dpkg-query -W -f='${Package} ${Provides}\n' 2>/dev/null \
+			| awk -v v="$name" '{for (i = 2; i <= NF; i++) { p = $i; sub(/,$/, "", p); if (p == v) { print $1; exit } }}')
+		if [ -n "$name" ] && installed "$name"; then
+			echo "$name"
+			return 0
+		fi
+	done
+	return 1
+}
+
+queue=("${!pkgs[@]}")
+while [ ${#queue[@]} -gt 0 ]; do
+	pkg=${queue[0]}
+	queue=("${queue[@]:1}")
+	[ -e "$base_status/$pkg" ] && continue
+	while IFS= read -r dep; do
+		[ -n "$dep" ] || continue
+		# "a (>= 1) | b:any" -> "a b"
+		read -r -a alts <<<"$(echo "$dep" | sed -e 's/([^)]*)//g' -e 's/|/ /g')"
+		if dp=$(provider "${alts[@]}") && [ -z "${pkgs[$dp]:-}" ] \
+			&& [[ $install_time != *" $dp "* ]]; then
+			pkgs[$dp]=1
+			queue+=("$dp")
+		fi
+	done < <(dpkg-query -W -f='${Depends}\n' "$pkg" | tr ',' '\n')
+done
+
+# 5. Copy each package that the base image doesn't already have.
 for pkg in $(printf '%s\n' "${!pkgs[@]}" | sort); do
 	if [ -e "$base_status/$pkg" ]; then
 		continue
@@ -100,7 +145,12 @@ for pkg in $(printf '%s\n' "${!pkgs[@]}" | sort); do
 	dpkg-query -L "$pkg" | while IFS= read -r f; do
 		case $f in /usr/share/doc/* | /usr/share/man/* | /usr/share/lintian/* | /usr/share/bug/*) continue ;; esac
 		if [ -L "$f" ] || [ -f "$f" ]; then
-			cp -a --parents "$f" "$dest"
+			# Resolve the parent directory, so a path under a merged-/usr symlink
+			# (/lib, /bin, /sbin) lands in /usr instead of creating a real /lib
+			# that would replace the runtime image's symlink.
+			dir=$(readlink -f "$(dirname "$f")")
+			mkdir -p "$dest$dir"
+			cp -a "$f" "$dest$dir/"
 		fi
 	done
 	dpkg-query -s "$pkg" | grep -v -e '^Status:' -e '^Conffiles:' -e '^ /' >"$dest/var/lib/dpkg/status.d/$pkg"

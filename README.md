@@ -24,7 +24,7 @@ The runtime image is a clean `dhi.io/debian-base:trixie` with only PHP, FrankenP
 - ARM64 (aarch64)
 
 ### Image Types
-- **Runtime** (`php<version>`): minimal image. Runs as non-root (UID 65532), no apt, no compilers.
+- **Runtime** (`php<version>`): minimal image. Runs as non-root (UID 65532), no apt, no compilers. Only `/data` and `/config` are writable by that user; config and `/app` are root-owned.
 - **Dev** (`php<version>-dev`): full build environment with headers, compilers, apt and [PIE](https://github.com/php/pie). Use it to compile extensions, then copy the result onto the runtime image.
 
 ## Image Tags
@@ -57,6 +57,7 @@ Each architecture-specific image is also tagged with the git commit SHA, e.g. `p
 - `opcache` and `sodium` enabled by default
 - Bundled extensions built as shared modules but not enabled: `bcmath`, `exif`, `ffi`, `gd`, `intl`, `mysqli`, `pdo_mysql`, `zip`. Enable with an ini file, e.g. `echo extension=gd > $PHP_INI_DIR/conf.d/gd.ini`
 - `CAP_NET_BIND_SERVICE` on the `frankenphp` binary, so it can bind ports 80/443 as non-root
+- `/etc/frankenphp/Caddyfile` is a symlink to `/etc/caddy/Caddyfile`, so `COPY` to either path replaces the config the default `CMD` uses
 - **Supply chain security**: All images include SLSA provenance attestations and SBOMs
 
 ## Adding Extensions
@@ -73,7 +74,7 @@ FROM ghcr.io/notglossy/frankenpress-src:php8.4
 COPY --from=build /rootfs/ /
 ```
 
-`fp-collect-runtime <dest> [package ...]` copies `/usr/local` (minus headers and build tools), resolves every shared library with `ldd`, and copies the owning packages that the runtime base doesn't already have. Extra packages, such as `ghostscript`, can be named to copy them whole.
+`fp-collect-runtime <dest> [package ...]` copies `/usr/local` (minus headers and build tools), resolves every shared library with `ldd`, and copies the owning packages, plus the packages they depend on, that the runtime image doesn't already have. Files and packages already in the runtime image are skipped. Extra packages, such as `ghostscript`, can be named to copy them whole.
 
 ## Build Process
 

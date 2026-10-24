@@ -17,164 +17,110 @@ jobs:
       packages: write
     strategy:
       matrix:
+        php_version: ["8.5", "8.4", "8.3", "8.2"]
+        arch: [amd64, arm64]
         include:
-          # Debian Trixie ARM64
-          - debian_version: trixie
-            php_version: "8.5"
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
             platform: linux/arm64
-            tags_suffix: php8.5-trixie-arm64
             runner: ubuntu-24.04-arm
-          - debian_version: trixie
-            php_version: "8.4"
-            platform: linux/arm64
-            tags_suffix: php8.4-trixie-arm64
-            runner: ubuntu-24.04-arm
-          - debian_version: trixie
-            php_version: "8.3"
-            platform: linux/arm64
-            tags_suffix: php8.3-trixie-arm64
-            runner: ubuntu-24.04-arm
-          - debian_version: trixie
-            php_version: "8.2"
-            platform: linux/arm64
-            tags_suffix: php8.2-trixie-arm64
-            runner: ubuntu-24.04-arm
+          # On PRs only this combination is built, as a test
+          - php_version: "8.4"
+            arch: amd64
+            is_test_build: true
 
-          # Debian Trixie AMD64
-          - debian_version: trixie
-            php_version: "8.5"
-            platform: linux/amd64
-            tags_suffix: php8.5-trixie-amd64
-            runner: ubuntu-latest
-          - debian_version: trixie
-            php_version: "8.4"
-            platform: linux/amd64
-            tags_suffix: php8.4-trixie-amd64
-            runner: ubuntu-latest
-            is_test_build: true  # Mark this as the test build for PRs
-          - debian_version: trixie
-            php_version: "8.3"
-            platform: linux/amd64
-            tags_suffix: php8.3-trixie-amd64
-            runner: ubuntu-latest
-          - debian_version: trixie
-            php_version: "8.2"
-            platform: linux/amd64
-            tags_suffix: php8.2-trixie-amd64
-            runner: ubuntu-latest
-
-          # Debian Bookworm ARM64
-          - debian_version: bookworm
-            php_version: "8.5"
-            platform: linux/arm64
-            tags_suffix: php8.5-bookworm-arm64
-            runner: ubuntu-24.04-arm
-          - debian_version: bookworm
-            php_version: "8.4"
-            platform: linux/arm64
-            tags_suffix: php8.4-bookworm-arm64
-            runner: ubuntu-24.04-arm
-          - debian_version: bookworm
-            php_version: "8.3"
-            platform: linux/arm64
-            tags_suffix: php8.3-bookworm-arm64
-            runner: ubuntu-24.04-arm
-          - debian_version: bookworm
-            php_version: "8.2"
-            platform: linux/arm64
-            tags_suffix: php8.2-bookworm-arm64
-            runner: ubuntu-24.04-arm
-
-          # Debian Bookworm AMD64
-          - debian_version: bookworm
-            php_version: "8.5"
-            platform: linux/amd64
-            tags_suffix: php8.5-bookworm-amd64
-            runner: ubuntu-latest
-          - debian_version: bookworm
-            php_version: "8.4"
-            platform: linux/amd64
-            tags_suffix: php8.4-bookworm-amd64
-            runner: ubuntu-latest
-          - debian_version: bookworm
-            php_version: "8.3"
-            platform: linux/amd64
-            tags_suffix: php8.3-bookworm-amd64
-            runner: ubuntu-latest
-          - debian_version: bookworm
-            php_version: "8.2"
-            platform: linux/amd64
-            tags_suffix: php8.2-bookworm-amd64
-            runner: ubuntu-latest
-
-          # Debian Bookworm ARM v7
-          - debian_version: bookworm
-            php_version: "8.5"
-            platform: linux/arm/v7
-            tags_suffix: php8.5-bookworm-armv7
-            runner: ubuntu-24.04-arm
-          - debian_version: bookworm
-            php_version: "8.4"
-            platform: linux/arm/v7
-            tags_suffix: php8.4-bookworm-armv7
-            runner: ubuntu-24.04-arm
-          - debian_version: bookworm
-            php_version: "8.3"
-            platform: linux/arm/v7
-            tags_suffix: php8.3-bookworm-armv7
-            runner: ubuntu-24.04-arm
-          - debian_version: bookworm
-            php_version: "8.2"
-            platform: linux/arm/v7
-            tags_suffix: php8.2-bookworm-armv7
-            runner: ubuntu-24.04-arm
+    env:
+      RUNTIME_TAG: php${{ matrix.php_version }}-trixie-${{ matrix.arch }}
+      DEV_TAG: php${{ matrix.php_version }}-trixie-dev-${{ matrix.arch }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        if: github.event_name != 'pull_request' || matrix.is_test_build == true
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        if: github.event_name != 'pull_request' || matrix.is_test_build == true
+        uses: docker/setup-buildx-action@v4
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      # Docker Hardened Images use Docker Hub credentials
+      - name: Log in to Docker Hardened Images
+        if: github.event_name != 'pull_request' || matrix.is_test_build == true
+        uses: docker/login-action@v4
         with:
+          registry: dhi.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract runtime metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ matrix.tags_suffix }}
-            type=raw,value=${{ matrix.tags_suffix }}-{{sha}}
+            type=raw,value=${{ env.RUNTIME_TAG }}
+            type=raw,value=${{ env.RUNTIME_TAG }}-{{sha}}
 
-      - name: Build and push Docker image
-        # On PRs, only build the test image; on main, build all
+      - name: Extract dev metadata
+        id: meta-dev
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ env.DEV_TAG }}
+            type=raw,value=${{ env.DEV_TAG }}-{{sha}}
+
+      # The dev build runs first; the runtime build reuses its cached layers.
+      - name: Build and push dev image
         if: github.event_name != 'pull_request' || matrix.is_test_build == true
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
+          target: dev
           platforms: ${{ matrix.platform }}
           build-args: |
             PHP_VERSION=${{ matrix.php_version }}
-            DEBIAN_VERSION=${{ matrix.debian_version }}
           push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-dev.outputs.tags }}
+          labels: ${{ steps.meta-dev.outputs.labels }}
+          provenance: ${{ github.event_name != 'pull_request' }}
+          sbom: ${{ github.event_name != 'pull_request' }}
+
+      - name: Build and push runtime image
+        if: github.event_name != 'pull_request' || matrix.is_test_build == true
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: runtime
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            PHP_VERSION=${{ matrix.php_version }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Add provenance attestations for supply chain security
-          provenance: true
-          sbom: true
+          provenance: ${{ github.event_name != 'pull_request' }}
+          sbom: ${{ github.event_name != 'pull_request' }}
+
+      - name: Smoke test runtime image
+        if: github.event_name == 'pull_request' && matrix.is_test_build == true
+        run: |
+          image=ghcr.io/${{ github.repository }}:${{ env.RUNTIME_TAG }}
+          docker run --rm "$image" php -i | grep -q 'Thread Safety => enabled'
+          docker run --rm "$image" frankenphp version
+          docker run -d --name smoke -e SERVER_NAME=:80 -p 8080:80 "$image"
+          sleep 5
+          curl -fsS http://localhost:8080/ | grep -q 'Thread Safety'
+          docker rm -f smoke
 
   create-manifests:
     needs: build
@@ -185,74 +131,26 @@ jobs:
       packages: write
     strategy:
       matrix:
-        include:
-          # Multi-arch manifests by PHP version only (all architectures)
-          - php_version: "8.5"
-            manifest_type: php-only
-          - php_version: "8.4"
-            manifest_type: php-only
-          - php_version: "8.3"
-            manifest_type: php-only
-          - php_version: "8.2"
-            manifest_type: php-only
-
-          # Multi-arch manifests by PHP version + Debian version
-          - php_version: "8.5"
-            debian_version: trixie
-            manifest_type: php-debian
-          - php_version: "8.4"
-            debian_version: trixie
-            manifest_type: php-debian
-          - php_version: "8.3"
-            debian_version: trixie
-            manifest_type: php-debian
-          - php_version: "8.2"
-            debian_version: trixie
-            manifest_type: php-debian
-          - php_version: "8.5"
-            debian_version: bookworm
-            manifest_type: php-debian
-          - php_version: "8.4"
-            debian_version: bookworm
-            manifest_type: php-debian
-          - php_version: "8.3"
-            debian_version: bookworm
-            manifest_type: php-debian
-          - php_version: "8.2"
-            debian_version: bookworm
-            manifest_type: php-debian
+        php_version: ["8.5", "8.4", "8.3", "8.2"]
+        variant: ["", "-dev"]
 
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create multi-arch manifest for PHP ${{ matrix.php_version }} (all architectures)
-        if: matrix.manifest_type == 'php-only'
+      - name: Create multi-arch manifests for PHP ${{ matrix.php_version }}${{ matrix.variant }}
         run: |
-          docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }} \
-            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-arm64 \
-            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-amd64 \
-            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-arm64 \
-            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-amd64 \
-            ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-armv7
-
-      - name: Create multi-arch manifest for PHP ${{ matrix.php_version }}-${{ matrix.debian_version }}
-        if: matrix.manifest_type == 'php-debian'
-        run: |
-          if [ "${{ matrix.debian_version }}" = "trixie" ]; then
-            docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-${{ matrix.debian_version }} \
-              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-arm64 \
-              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-trixie-amd64
-          else
-            docker buildx imagetools create -t ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-${{ matrix.debian_version }} \
-              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-arm64 \
-              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-amd64 \
-              ghcr.io/${{ github.repository }}:php${{ matrix.php_version }}-bookworm-armv7
-          fi
+          image=ghcr.io/${{ github.repository }}
+          base=php${{ matrix.php_version }}-trixie${{ matrix.variant }}
+          docker buildx imagetools create \
+            -t "$image:php${{ matrix.php_version }}${{ matrix.variant }}" \
+            -t "$image:$base" \
+            "$image:$base-amd64" \
+            "$image:$base-arm64"

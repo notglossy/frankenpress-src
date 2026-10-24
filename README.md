@@ -4,7 +4,9 @@ Base FrankenPHP Docker images for [FrankenPress](https://github.com/notglossy/fr
 
 ## Overview
 
-This repository builds multi-architecture FrankenPHP base images using GitHub Actions. These images are designed to be used as the foundation for the FrankenPress project, providing optimized FrankenPHP builds with various PHP versions across different Debian distributions and CPU architectures.
+This repository builds multi-architecture FrankenPHP base images on [Docker Hardened Images](https://docs.docker.com/dhi/) (DHI) using GitHub Actions. DHI has no thread-safe (ZTS) PHP, which FrankenPHP requires, so PHP is compiled here from the official php.net source tarball against DHI's own hardened Debian packages (`dhi.io/deb`). FrankenPHP is built with DHI's Go toolchain.
+
+The runtime image is a clean `dhi.io/debian-base:trixie` with only PHP, FrankenPHP and the libraries they load copied in. Every added library is a DHI-built package with a dpkg `status.d` entry, so vulnerability scanners and SBOMs see it.
 
 ## Supported Variants
 
@@ -14,14 +16,16 @@ This repository builds multi-architecture FrankenPHP base images using GitHub Ac
 - 8.3
 - 8.2
 
-### Debian Distributions
-- Trixie (Debian 13)
-- Bookworm (Debian 12)
+### Base
+- Debian Trixie (Debian 13), via `dhi.io/debian-base:trixie`
 
 ### Architectures
-- ARM64 (aarch64)
 - AMD64 (x86_64)
-- ARMv7 (32-bit ARM)
+- ARM64 (aarch64)
+
+### Image Types
+- **Runtime** (`php<version>`): minimal image. Runs as non-root (UID 65532), no apt, no compilers.
+- **Dev** (`php<version>-dev`): full build environment with headers, compilers, apt and [PIE](https://github.com/php/pie). Use it to compile extensions, then copy the result onto the runtime image.
 
 ## Image Tags
 
@@ -29,73 +33,71 @@ Images are hosted on GitHub Container Registry with both multi-architecture mani
 
 ### Multi-Architecture Manifests (Recommended)
 
-**By PHP version only** (includes all available architectures):
 ```
 ghcr.io/notglossy/frankenpress-src:php<version>
+ghcr.io/notglossy/frankenpress-src:php<version>-trixie
+ghcr.io/notglossy/frankenpress-src:php<version>-dev
+ghcr.io/notglossy/frankenpress-src:php<version>-trixie-dev
 ```
-
-Examples:
-- `ghcr.io/notglossy/frankenpress-src:php8.4` - All architectures across both distros
-- `ghcr.io/notglossy/frankenpress-src:php8.3` - All architectures across both distros
-
-**By PHP version + Debian version** (multi-arch for that distro):
-```
-ghcr.io/notglossy/frankenpress-src:php<version>-<debian>
-```
-
-Examples:
-- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie` - ARM64 + AMD64 on Trixie
-- `ghcr.io/notglossy/frankenpress-src:php8.4-bookworm` - ARM64 + AMD64 + ARMv7 on Bookworm
-- `ghcr.io/notglossy/frankenpress-src:php8.3-trixie` - ARM64 + AMD64 on Trixie
 
 ### Architecture-Specific Tags
 
-For targeting specific Debian versions and architectures:
 ```
-ghcr.io/notglossy/frankenpress-src:php<version>-<debian>-<arch>
+ghcr.io/notglossy/frankenpress-src:php<version>-trixie-<arch>
+ghcr.io/notglossy/frankenpress-src:php<version>-trixie-dev-<arch>
 ```
 
-Examples:
-- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64`
-- `ghcr.io/notglossy/frankenpress-src:php8.3-bookworm-armv7`
-- `ghcr.io/notglossy/frankenpress-src:php8.2-trixie-arm64`
-
-Each architecture-specific image is also tagged with the git commit SHA:
-- `ghcr.io/notglossy/frankenpress-src:php8.4-trixie-amd64-<git-sha>`
+Each architecture-specific image is also tagged with the git commit SHA, e.g. `php8.4-trixie-amd64-<git-sha>`.
 
 ## Features
 
-- Built with the latest Go compiler available in official Golang images
-- Includes FrankenPHP with Caddy web server
-- Compiled with optimized build flags
-- Includes Vulcain and Brotli compression support
-- File watcher library (libwatcher-c) for development
-- Includes `install-php-extensions` helper for easy PHP extension installation
+- ZTS PHP compiled from the latest patch release of each minor version (checksum-verified)
+- FrankenPHP with Caddy, Vulcain and Brotli compression
+- File watcher library (libwatcher-c)
+- `opcache` and `sodium` enabled by default
+- Bundled extensions built as shared modules but not enabled: `bcmath`, `exif`, `ffi`, `gd`, `intl`, `mysqli`, `pdo_mysql`, `zip`. Enable with an ini file, e.g. `echo extension=gd > $PHP_INI_DIR/conf.d/gd.ini`
+- `CAP_NET_BIND_SERVICE` on the `frankenphp` binary, so it can bind ports 80/443 as non-root
 - **Supply chain security**: All images include SLSA provenance attestations and SBOMs
+
+## Adding Extensions
+
+Install PECL extensions with PIE in the dev image, then use `fp-collect-runtime` to gather them and the DHI packages they need into a directory that is copied onto the runtime image:
+
+```dockerfile
+FROM ghcr.io/notglossy/frankenpress-src:php8.4-dev AS build
+RUN apt-get update && apt-get install -y --no-install-recommends libmagickwand-dev \
+    && pie install apcu/apcu phpredis/phpredis imagick/imagick \
+    && fp-collect-runtime /rootfs
+
+FROM ghcr.io/notglossy/frankenpress-src:php8.4
+COPY --from=build /rootfs/ /
+```
+
+`fp-collect-runtime <dest> [package ...]` copies `/usr/local` (minus headers and build tools), resolves every shared library with `ldd`, and copies the owning packages that the runtime base doesn't already have. Extra packages, such as `ghostscript`, can be named to copy them whole.
 
 ## Build Process
 
 Images are automatically built using GitHub Actions on:
 - Pushes to the `main` branch
-- Pull requests (build only, no push - single test image)
+- A weekly schedule (Saturdays 02:00 UTC), to pick up PHP, Go and DHI package updates
+- Pull requests (build and smoke test only, no push - single PHP 8.4 amd64 image)
 - Manual workflow dispatch
 
-The build process uses native architecture runners for optimal performance:
-- AMD64 images: Built on `ubuntu-latest` (x86_64) runners
-- ARM64/ARMv7 images: Built on `ubuntu-24.04-arm` (native ARM) runners
+AMD64 images build on `ubuntu-latest` and ARM64 on `ubuntu-24.04-arm` native runners, so no QEMU emulation is needed.
 
-This eliminates the need for QEMU emulation and significantly speeds up ARM builds.
+Pulling from `dhi.io` uses the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets.
 
 ## Local Building
 
-To build an image locally:
+Log in to DHI with your Docker Hub account first:
 
 ```bash
-docker build \
-  --build-arg PHP_VERSION=8.4 \
-  --build-arg DEBIAN_VERSION=trixie \
-  --platform linux/amd64 \
-  -t frankenpress-base:local .
+docker login dhi.io
+```
+
+```bash
+docker build --build-arg PHP_VERSION=8.4 -t frankenpress-src:local .
+docker build --build-arg PHP_VERSION=8.4 --target dev -t frankenpress-src:local-dev .
 ```
 
 ## Pulling Images

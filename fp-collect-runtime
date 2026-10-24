@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Collect everything needed to run PHP + FrankenPHP into a directory that can be
+# copied onto a clean dhi.io/debian-base runtime image.
+#
+# Usage: fp-collect-runtime <dest> [extra-package ...]
+#
+# - Copies /usr/local, minus build-only files (headers, phpize, php-config, PIE).
+# - Resolves every shared library the ELF files need (ldd), maps each one to the
+#   Debian package that owns it and copies that package's files.
+# - Extra packages (e.g. ghostscript) are copied whole, and their libraries
+#   resolved the same way.
+# - Writes a dpkg status.d entry for every copied package so scanners and SBOM
+#   tools see them, exactly like the packages DHI ships in the base image.
+# - Skips packages and /usr/local files already present in the runtime image,
+#   so downstream images only copy what they changed.
+set -euo pipefail
+
+dest=${1:?usage: fp-collect-runtime <dest> [extra-package ...]}
+shift
+extra=("$@")
+base_status=/usr/local/share/frankenpress/base-status.d
+runtime_manifest=/usr/local/share/frankenpress/runtime-usr-local.sha256
+
+is_elf() { [ "$(od -An -tx1 -N4 "$1" 2>/dev/null | tr -d ' ')" = "7f454c46" ]; }
+
+owner() {
+	local p=$1 cand
+	for cand in "$p" "$(readlink -f "$p")" "${p#/usr}" "/usr$p"; do
+		dpkg-query -S "$cand" 2>/dev/null | head -n1 | cut -d: -f1 && return 0
+	done
+	return 1
+}
+
+mkdir -p "$dest/var/lib/dpkg/status.d"
+
+# 1. /usr/local without build-only files.
+tar -C / -cf - \
+	--exclude=usr/local/include \
+	--exclude=usr/local/lib/php/build \
+	--exclude=usr/local/lib/cmake \
+	--exclude=usr/local/lib/pkgconfig \
+	--exclude='usr/local/lib/*.a' \
+	--exclude=usr/local/bin/phpize \
+	--exclude=usr/local/bin/php-config \
+	--exclude=usr/local/bin/pie \
+	--exclude=usr/local/bin/fp-collect-runtime \
+	--exclude=usr/local/share \
+	--exclude=usr/local/php/man \
+	usr/local | tar -C "$dest" -xf -
+
+# Drop files the runtime image already has unchanged.
+if [ -f "$runtime_manifest" ]; then
+	(cd "$dest" && sha256sum -c "$runtime_manifest" 2>/dev/null || true) \
+		| sed -n 's/: OK$//p' \
+		| while IFS= read -r f; do rm -f "$dest/$f"; done
+	find "$dest/usr/local" -depth -type d -empty -delete
+fi
+
+# tar doesn't carry file capabilities; let frankenphp bind ports 80/443 as non-root.
+if [ -f "$dest/usr/local/bin/frankenphp" ]; then
+	setcap cap_net_bind_service=+ep "$dest/usr/local/bin/frankenphp"
+fi
+
+# 2. ELF files whose libraries we need: everything in /usr/local + extra packages.
+elfs=()
+while IFS= read -r -d '' f; do is_elf "$f" && elfs+=("$f"); done \
+	< <(find "$dest/usr/local" -type f -print0 2>/dev/null)
+for pkg in "${extra[@]}"; do
+	while IFS= read -r f; do
+		[ -f "$f" ] && [ ! -L "$f" ] && is_elf "$f" && elfs+=("$f")
+	done < <(dpkg-query -L "$pkg")
+done
+
+missing=$(ldd "${elfs[@]}" 2>/dev/null | grep 'not found' || true)
+if [ -n "$missing" ]; then
+	echo "fp-collect-runtime: unresolved libraries:" >&2
+	echo "$missing" >&2
+	exit 1
+fi
+
+# 3. Map libraries to packages.
+declare -A pkgs=()
+for pkg in "${extra[@]}"; do pkgs[$pkg]=1; done
+while read -r lib; do
+	case $lib in /usr/local/*) continue ;; esac
+	if pkg=$(owner "$lib"); then
+		pkgs[$pkg]=1
+	else
+		echo "fp-collect-runtime: no package owns $lib" >&2
+		exit 1
+	fi
+done < <(ldd "${elfs[@]}" 2>/dev/null | awk '/=> \//{print $3}' | sort -u)
+
+# 4. Copy each package that the base image doesn't already have.
+for pkg in $(printf '%s\n' "${!pkgs[@]}" | sort); do
+	if [ -e "$base_status/$pkg" ]; then
+		continue
+	fi
+	echo "fp-collect-runtime: adding $pkg"
+	dpkg-query -L "$pkg" | while IFS= read -r f; do
+		case $f in /usr/share/doc/* | /usr/share/man/* | /usr/share/lintian/* | /usr/share/bug/*) continue ;; esac
+		if [ -L "$f" ] || [ -f "$f" ]; then
+			cp -a --parents "$f" "$dest"
+		fi
+	done
+	dpkg-query -s "$pkg" | grep -v -e '^Status:' -e '^Conffiles:' -e '^ /' >"$dest/var/lib/dpkg/status.d/$pkg"
+done

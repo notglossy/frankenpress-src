@@ -1,5 +1,7 @@
 # FrankenPress Base Images
 
+![PHP 8.5](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnotglossy%2Ffrankenpress-src%2Fbadges%2Fphp-8.5.json) ![PHP 8.4](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnotglossy%2Ffrankenpress-src%2Fbadges%2Fphp-8.4.json) ![PHP 8.3](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnotglossy%2Ffrankenpress-src%2Fbadges%2Fphp-8.3.json) ![PHP 8.2](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnotglossy%2Ffrankenpress-src%2Fbadges%2Fphp-8.2.json)
+
 Base FrankenPHP Docker images for [FrankenPress](https://github.com/notglossy/frankenpress), built with the latest Go and Caddy versions.
 
 ## Overview
@@ -60,6 +62,7 @@ Each architecture-specific image is also tagged with the git commit SHA, e.g. `p
 - `CAP_NET_BIND_SERVICE` on the `frankenphp` binary, so it can bind ports 80/443 as non-root
 - `/etc/frankenphp/Caddyfile` is a symlink to `/etc/caddy/Caddyfile`, so `COPY` to either path replaces the config the default `CMD` uses
 - **Supply chain security**: All images include SLSA provenance attestations and SBOMs
+- **PHP version badges**: after each build, CI reads the PHP version from every published image and updates the badges above (stored on the `badges` branch)
 - **Vulnerability scanning**: every CI build scans the runtime image with Docker Scout (which applies DHI's VEX statements). Critical and high CVEs are listed in the job summary, and the job fails on any critical CVE that has a fix available
 
 ## Adding Extensions

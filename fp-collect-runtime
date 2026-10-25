@@ -97,8 +97,9 @@ done < <(ldd "${elfs[@]}" 2>/dev/null | awk '/=> \//{print $3}' | sort -u)
 #    (a | b) the first installed one wins; virtual packages resolve through the
 #    real package that provides them. Pre-Depends and the tools maintainer
 #    scripts call are install-time only; a runtime with no package manager
-#    doesn't need them.
-install_time=" dpkg debconf ucf install-info "
+#    doesn't need them. xfonts-utils only builds font indexes in font
+#    packages' postinst, and lsb-base only serves init scripts.
+install_time=" dpkg debconf ucf install-info xfonts-utils lsb-base "
 installed() { [ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2>/dev/null)" = installed ]; }
 
 provider() {

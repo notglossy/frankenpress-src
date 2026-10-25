@@ -51,7 +51,8 @@ Each architecture-specific image is also tagged with the git commit SHA, e.g. `p
 
 ## Features
 
-- ZTS PHP compiled from the latest patch release of each minor version (checksum-verified)
+- ZTS PHP compiled from the latest patch release of each minor version, checksum- and GPG-verified against the pinned release-manager keys for that branch
+- FrankenPHP built from the latest release tag, with the default Caddyfile from the same tag. Pin a release with `--build-arg FRANKENPHP_VERSION=v1.13.3`
 - FrankenPHP with Caddy, Vulcain and Brotli compression
 - File watcher library (libwatcher-c)
 - `opcache` and `sodium` enabled by default
@@ -59,6 +60,7 @@ Each architecture-specific image is also tagged with the git commit SHA, e.g. `p
 - `CAP_NET_BIND_SERVICE` on the `frankenphp` binary, so it can bind ports 80/443 as non-root
 - `/etc/frankenphp/Caddyfile` is a symlink to `/etc/caddy/Caddyfile`, so `COPY` to either path replaces the config the default `CMD` uses
 - **Supply chain security**: All images include SLSA provenance attestations and SBOMs
+- **Vulnerability scanning**: every CI build scans the runtime image with Docker Scout (which applies DHI's VEX statements). Critical and high CVEs are listed in the job summary, and the job fails on any critical CVE that has a fix available
 
 ## Adding Extensions
 

@@ -14,6 +14,8 @@
 # Requires `docker login dhi.io`.
 
 ARG PHP_VERSION=8.4
+# FrankenPHP release (e.g. v1.13.3); "latest" resolves the newest tag at build time.
+ARG FRANKENPHP_VERSION=latest
 
 FROM dhi.io/debian-base:trixie AS runtime-base
 FROM dhi.io/golang:1-debian13-dev AS golang
@@ -38,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		g++ \
 		gcc \
 		git \
+		gnupg \
 		jq \
 		libc-dev \
 		libcap2-bin \
@@ -64,13 +67,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		zlib1g-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
-# Fetch the latest patch release of PHP_VERSION and verify its checksum.
+# Fetch the latest patch release of PHP_VERSION, verify its checksum, and
+# verify its GPG signature was made by one of that branch's release managers.
+# The fingerprints are pinned here (same as docker-library/php), so a
+# compromised php.net can't substitute its own key; php.net's keyring is only
+# used to obtain the public keys.
 RUN set -eux; \
+	case "$PHP_VERSION" in \
+		8.2) keys='39B641343D8C104B2B146DC3F9C39DC0B9698544 E60913E4DF209907D8E30D96659A97C9CF2A795A 1198C0117593497A5EC5C199286AF1F9897469DC' ;; \
+		8.3) keys='1198C0117593497A5EC5C199286AF1F9897469DC C28D937575603EB4ABB725861C0779DC5C0A9DE4 AFD8691FDAEDF03BDF6E460563F15A9B715376CA' ;; \
+		8.4) keys='AFD8691FDAEDF03BDF6E460563F15A9B715376CA 9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6 0616E93D95AF471243E26761770426E17EBBB3DD' ;; \
+		8.5) keys='1198C0117593497A5EC5C199286AF1F9897469DC 49D9AF6BC72A80D6691719C8AA23F5BE9C7097D4 D95C03BC702BE9515344AE3374E44BC9067701A5' ;; \
+		*) echo >&2 "No release-manager GPG keys pinned for PHP $PHP_VERSION"; exit 1 ;; \
+	esac; \
 	release="$(curl -fsSL "https://www.php.net/releases/?json&version=${PHP_VERSION}")"; \
 	version="$(echo "$release" | jq -r .version)"; \
 	sha256="$(echo "$release" | jq -r '.source[] | select(.filename | endswith(".tar.xz")) | .sha256')"; \
 	curl -fsSLo /tmp/php.tar.xz "https://www.php.net/distributions/php-${version}.tar.xz"; \
+	curl -fsSLo /tmp/php.tar.xz.asc "https://www.php.net/distributions/php-${version}.tar.xz.asc"; \
 	echo "${sha256}  /tmp/php.tar.xz" | sha256sum -c -; \
+	export GNUPGHOME="$(mktemp -d)"; \
+	curl -fsSL https://www.php.net/distributions/php-keyring.gpg | gpg --batch --import; \
+	signer="$(gpg --batch --status-fd 1 --verify /tmp/php.tar.xz.asc /tmp/php.tar.xz | awk '$2 == "VALIDSIG" { print $NF }')"; \
+	case " $keys " in \
+		*" $signer "*) echo "PHP $version signed by $signer" ;; \
+		*) echo >&2 "PHP $version signed by unexpected key '$signer'"; exit 1 ;; \
+	esac; \
+	gpgconf --kill all; \
+	rm -rf "$GNUPGHOME" /tmp/php.tar.xz.asc; \
 	mkdir -p /usr/src/php; \
 	tar -xJf /tmp/php.tar.xz -C /usr/src/php --strip-components=1; \
 	rm /tmp/php.tar.xz
@@ -131,9 +155,18 @@ COPY --from=golang /usr/lib/go /usr/lib/go
 ENV PATH=/usr/lib/go/bin:/root/go/bin:$PATH \
 	CGO_ENABLED=1
 
+# Resolve one FrankenPHP release, so the binary and the default Caddyfile come
+# from the same tag.
+ARG FRANKENPHP_VERSION
 WORKDIR /src
-RUN git clone --depth 1 https://github.com/php/frankenphp.git \
-	&& git clone --depth 1 https://github.com/e-dant/watcher.git
+RUN set -eux; \
+	version="$FRANKENPHP_VERSION"; \
+	if [ "$version" = latest ]; then \
+		version="$(go list -m -f '{{.Version}}' github.com/dunglas/frankenphp/caddy@latest)"; \
+	fi; \
+	echo "$version" > /src/frankenphp-version; \
+	git clone --depth 1 --branch "$version" https://github.com/php/frankenphp.git; \
+	git clone --depth 1 https://github.com/e-dant/watcher.git
 
 RUN cmake -S watcher -B watcher/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wno-error=use-after-free" \
 	&& cmake --build watcher/build \
@@ -148,7 +181,7 @@ RUN go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest \
 	&& export XCADDY_GO_BUILD_FLAGS="-ldflags='-w -s' -tags=nobadger,nomysql,nopgx" \
 	&& xcaddy build \
 		--output /usr/local/bin/frankenphp \
-		--with github.com/dunglas/frankenphp/caddy \
+		--with "github.com/dunglas/frankenphp/caddy@$(cat /src/frankenphp-version)" \
 		--with github.com/dunglas/vulcain/caddy \
 		--with github.com/dunglas/caddy-cbrotli \
 	&& rm -rf /root/go /root/.cache \

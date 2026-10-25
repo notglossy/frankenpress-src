@@ -111,6 +111,34 @@ jobs:
           provenance: ${{ github.event_name != 'pull_request' }}
           sbom: ${{ github.event_name != 'pull_request' }}
 
+      # Docker Scout applies DHI's VEX statements, so CVEs Docker has marked
+      # as not affecting its patched packages aren't reported.
+      - name: Scan runtime image for vulnerabilities
+        if: github.event_name != 'pull_request' || matrix.is_test_build == true
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ github.event_name == 'pull_request' && 'local://' || 'registry://' }}ghcr.io/${{ github.repository }}:${{ env.RUNTIME_TAG }}
+          only-severities: critical,high
+          summary: true
+          write-comment: false
+          dockerhub-user: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Fail on fixable critical vulnerabilities
+        if: github.event_name != 'pull_request' || matrix.is_test_build == true
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ github.event_name == 'pull_request' && 'local://' || 'registry://' }}ghcr.io/${{ github.repository }}:${{ env.RUNTIME_TAG }}
+          only-severities: critical
+          only-fixed: true
+          exit-code: true
+          summary: false
+          write-comment: false
+          dockerhub-user: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Smoke test runtime image
         if: github.event_name == 'pull_request' && matrix.is_test_build == true
         run: |
